@@ -17,7 +17,7 @@ MiniShop2 v.2.4.12 и выше;
 
 ### Ручная установка
 
-1. Загрузить папку mspRobokassa в корневой каталог modx
+1. Загрузить в любую подпапку modx (например mspRobokassa)
 2. Запустить http://your-domain.ru/mspRobokassa/_build/build.transport.php
 3. Пакет должен появится в списке пакетов в разделе "Управление пакетами"
 
