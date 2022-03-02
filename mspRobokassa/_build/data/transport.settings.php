@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Loads system settings into build
  * @var modX $modx
@@ -74,7 +75,8 @@ foreach ($tmp as $k => $v) {
             'key' => 'ms2_payment_rbks_' . $k,
             'namespace' => 'minishop2',
             'area' => 'ms2_payment',
-        ], $v
+        ],
+        $v
     ), '', true, true);
 
     $settings[] = $setting;

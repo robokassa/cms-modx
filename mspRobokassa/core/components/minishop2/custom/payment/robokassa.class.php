@@ -12,9 +12,9 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
 
     const LOG_NAME = '[miniShop2:Robokassa]';
 
-    function __construct(xPDOObject $object, $config = [])
+    public function __construct(xPDOObject $object, $config = [])
     {
-        $this->modx = &$object->xpdo;
+        $this->modx = $object->xpdo;
 
         $siteUrl = $this->modx->getOption('site_url');
         $assetsUrl = $this->modx->getOption(
