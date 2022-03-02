@@ -1,7 +1,7 @@
 <?php
 
-define('MODX_API_MODE', true);
-require dirname(dirname(dirname(dirname(dirname(__FILE__))))) . '/index.php';
+const MODX_API_MODE = true;
+require dirname(__FILE__, 5) . '/index.php';
 
 /** @var modX $modx */
 $modx->getService('error', 'error.modError');

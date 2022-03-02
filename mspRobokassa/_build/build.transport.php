@@ -6,6 +6,7 @@
  * @package msprobokassa
  * @subpackage build
  */
+
 $mtime = microtime();
 $mtime = explode(' ', $mtime);
 $mtime = $mtime[1] + $mtime[0];
@@ -15,7 +16,7 @@ set_time_limit(0);
 require_once 'build.config.php';
 
 /* define sources */
-$root = dirname(dirname(__FILE__)) . '/';
+$root = dirname(__FILE__, 2) . '/';
 $sources = array(
     'root' => $root,
     'build' => $root . '_build/',

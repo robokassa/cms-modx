@@ -1,39 +1,38 @@
 <?php
 
 /* define package */
-define('PKG_NAME', 'mspRobokassa');
+const PKG_NAME = 'mspRobokassa';
 define('PKG_NAME_LOWER', strtolower(PKG_NAME));
 
-define('PKG_VERSION', '1.1.1');
-define('PKG_RELEASE', 'pl1');
-define('PKG_AUTO_INSTALL', true);
-
+const PKG_VERSION = '2.0.0';
+const PKG_RELEASE = 'pl1';
+const PKG_AUTO_INSTALL = true;
 
 /* define paths */
 /* define paths */
 if (isset($_SERVER['MODX_BASE_PATH'])) {
     define('MODX_BASE_PATH', $_SERVER['MODX_BASE_PATH']);
-} elseif (file_exists(dirname(dirname(dirname(__FILE__))) . '/core')) {
-    define('MODX_BASE_PATH', dirname(dirname(dirname(__FILE__))) . '/');
+} elseif (file_exists(dirname(__FILE__, 3) . '/core')) {
+    define('MODX_BASE_PATH', dirname(__FILE__, 3) . '/');
 } else {
-    define('MODX_BASE_PATH', dirname(dirname(dirname(dirname(__FILE__)))) . '/');
+    define('MODX_BASE_PATH', dirname(__FILE__, 4) . '/');
 }
-define('MODX_CORE_PATH', MODX_BASE_PATH . 'core/');
-define('MODX_MANAGER_PATH', MODX_BASE_PATH . 'manager/');
-define('MODX_CONNECTORS_PATH', MODX_BASE_PATH . 'connectors/');
-define('MODX_ASSETS_PATH', MODX_BASE_PATH . 'assets/');
+const MODX_CORE_PATH = MODX_BASE_PATH . 'core/';
+const MODX_MANAGER_PATH = MODX_BASE_PATH . 'manager/';
+const MODX_CONNECTORS_PATH = MODX_BASE_PATH . 'connectors/';
+const MODX_ASSETS_PATH = MODX_BASE_PATH . 'assets/';
 
 /* define urls */
-define('MODX_BASE_URL', '/');
-define('MODX_CORE_URL', MODX_BASE_URL . 'core/');
-define('MODX_MANAGER_URL', MODX_BASE_URL . 'manager/');
-define('MODX_CONNECTORS_URL', MODX_BASE_URL . 'connectors/');
-define('MODX_ASSETS_URL', MODX_BASE_URL . 'assets/');
+const MODX_BASE_URL = '/';
+const MODX_CORE_URL = MODX_BASE_URL . 'core/';
+const MODX_MANAGER_URL = MODX_BASE_URL . 'manager/';
+const MODX_CONNECTORS_URL = MODX_BASE_URL . 'connectors/';
+const MODX_ASSETS_URL = MODX_BASE_URL . 'assets/';
 
 /* define build options */
 //define('BUILD_MENU_UPDATE', false);
 //define('BUILD_ACTION_UPDATE', false);
-define('BUILD_SETTING_UPDATE', false);
+const BUILD_SETTING_UPDATE = false;
 //define('BUILD_CHUNK_UPDATE', false);
 
 //define('BUILD_SNIPPET_UPDATE', true);
