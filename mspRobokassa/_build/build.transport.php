@@ -68,11 +68,11 @@ if (defined('BUILD_SETTING_UPDATE')) {
 
 
 /* @var msPayment $payment */
-$payment = $modx->newObject('msPayment');
+$payment = $modx->newObject(msPayment::class);
 $payment->fromArray(array(
-    'name' => 'Robokassa'
-, 'active' => 0
-, 'class' => 'Robokassa'
+    'name' => 'Robokassa',
+    'active' => 0,
+    'class' => 'Robokassa'
 ));
 
 /* create payment vehicle */

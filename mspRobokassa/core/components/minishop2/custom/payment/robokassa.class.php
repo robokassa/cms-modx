@@ -1,8 +1,16 @@
 <?php
 
+$newBasePaymentHandler = dirname(__FILE__, 3) . '/handlers/mspaymenthandler.class.php';
+$oldBasePaymentHandler = dirname(__FILE__, 3) . '/model/minishop2/mspaymenthandler.class.php';
+
 if (!class_exists('msPaymentInterface')) {
-    require_once dirname(__FILE__, 3) . '/model/minishop2/mspaymenthandler.class.php';
+    if (file_exists($newBasePaymentHandler)) {
+        require_once $newBasePaymentHandler;
+    } else {
+        require_once $oldBasePaymentHandler;
+    }
 }
+
 
 class Robokassa extends msPaymentHandler implements msPaymentInterface
 {
@@ -14,33 +22,38 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
 
     public function __construct(xPDOObject $object, $config = [])
     {
+        parent::__construct($object, $config);
+
         $this->modx = $object->xpdo;
 
         $siteUrl = $this->modx->getOption('site_url');
         $assetsUrl = $this->modx->getOption(
-            'minishop2.assets_url', $config,
+            'minishop2.assets_url',
+            $config,
             $this->modx->getOption('assets_url') . 'components/minishop2/'
         );
         $paymentUrl = $siteUrl . substr($assetsUrl, 1) . 'payment/robokassa.php';
 
-        $checkoutUrl = 'https://auth.robokassa.ru/Merchant/Index.aspx';
+        $checkoutUrl = 'https://auth.robokassa.ru/Merchant/Index/';
+        $postUrl = 'https://auth.robokassa.ru/Merchant/Indexjson.aspx';
 
         $this->config = array_merge([
             'paymentUrl' => $paymentUrl,
             'checkoutUrl' => $checkoutUrl,
+            'postUrl' => $postUrl,
             'login' => $this->modx->getOption('ms2_payment_rbks_login'),
             'pass1' => $this->modx->getOption('ms2_payment_rbks_pass1'),
             'pass2' => $this->modx->getOption('ms2_payment_rbks_pass2'),
             'country' => $this->modx->getOption('ms2_payment_rbks_country'),
-            'currency' => $this->modx->getOption('ms2_payment_rbks_currency', '', true),
-            'culture' => $this->modx->getOption('ms2_payment_rbks_culture', 'ru', true),
-            'json_response' => false,
-            'receipt' => $this->modx->getOption('ms2_payment_rbks_receipt', 'ru', false),
-            'debug' => $this->modx->getOption('ms2_payment_rbks_debug', 'ru', false),
-            'payment_method' => $this->modx->getOption('ms2_payment_rbks_payment_method', 'ru', 'none'),
-            'payment_object' => $this->modx->getOption('ms2_payment_rbks_payment_object', 'ru', 'none'),
-            'tax' => $this->modx->getOption('ms2_payment_rbks_tax', 'ru', 'none'),
-            'test_mode' => $this->modx->getOption('ms2_payment_rbks_test_mode', 'ru', false),
+            'currency' => $this->modx->getOption('ms2_payment_rbks_currency', null, 'rub'),
+            'culture' => $this->modx->getOption('ms2_payment_rbks_culture', null, 'ru'),
+            'receipt' => $this->modx->getOption('ms2_payment_rbks_receipt', null, false),
+            'debug' => $this->modx->getOption('ms2_payment_rbks_debug', null, false),
+            'payment_method' => $this->modx->getOption('ms2_payment_rbks_payment_method', null, 'none'),
+            'payment_object' => $this->modx->getOption('ms2_payment_rbks_payment_object', null, 'none'),
+            'tax' => $this->modx->getOption('ms2_payment_rbks_tax', null, 'none'),
+            'test_mode' => $this->modx->getOption('ms2_payment_rbks_test_mode', null, false),
+            'shp_label' => 'modx_official'
         ], $config);
     }
 
@@ -50,7 +63,11 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
     {
         $link = $this->getPaymentLink($order);
 
-        return $this->success('', ['redirect' => $link]);
+        if ($link) {
+            return $this->success('', ['redirect' => $link]);
+        }
+
+        return $this->error('', []);
     }
 
     /**
@@ -61,7 +78,7 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
     public function getPaymentLink(msOrder $order)
     {
         $id = $order->get('id');
-        $sum = $this->formatSum($order->get('cost'));
+        $sum = $order->get('cost');
         $hashData = $this->getRequestHashData($order);
 
         $request = [
@@ -69,14 +86,15 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'OutSum' => $sum,
             'InvId' => $id,
             'Desc' => 'Payment #' . $id,
-            'SignatureValue' => $this->getHash($hashData), //TODO: upper false
-            'Shp_label' => 'modx_official',
+            'SignatureValue' => $this->getHash($hashData),
+            'Shp_label' => $this->config['shp_label'],
             'IncCurrLabel' => $this->config['currency'],
             'Culture' => $this->config['culture'],
         ];
 
         if ($this->config['receipt']) {
-            $receipt = $this->modx->toJSON($this->getReceipt($order));
+            $receipt = $this->getReceipt($order);
+            $receipt = $this->receiptEncode($receipt);
             $request['Receipt'] = $receipt;
         }
 
@@ -84,36 +102,34 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             $request['isTest'] = 1;
         }
 
-        if ($this->config['debug']) {
-            $this->log('Request Link:', $request);
-            $this->log('HashData:', $hashData);
+        $response = $this->gateway($request);
+
+        if (isset($response['error']) && count($response['error']) > 0) {
+            $this->modx->log(1, 'Ошибка получения ссылки на оплату');
+            return false;
         }
 
-        return $this->config['checkoutUrl'] . '?' . http_build_query($request);
+        return $this->config['checkoutUrl'] . $response['invoiceID'];
     }
 
 
     /* @inheritdoc} */
-    public function receive(msOrder $order, $params = [])
+    public function receive(msOrder $order)
     {
         $id = $order->get('id');
-        $crc = strtoupper($_REQUEST['SignatureValue']);
-        // Production
+        $crc = $_POST['SignatureValue'];
         $crc1 = $this->getHash([
-            $_REQUEST['OutSum'],
+            $_POST['OutSum'],
             $id,
             $this->config['pass2'],
             'Shp_label=modx_official'
         ]);
 
-        if ($crc == $crc1) {
-            /* @var miniShop2 $miniShop2 */
-            $miniShop2 = $this->modx->getService('miniShop2');
-            @$this->modx->context->key = 'mgr';
-            $miniShop2->changeOrderStatus($order->get('id'), 2);
+        if ($crc === $crc1) {
+            $this->ms2->changeOrderStatus($id, 2);
             exit('OK');
         } else {
-            $this->paymentError('Wrong signature.', $params);
+            $this->paymentError('Wrong signature.', $_POST);
         }
     }
 
@@ -164,18 +180,19 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
     {
         $data = [
             $this->config['login'],
-            $this->formatSum($order->get('cost')), //TODO: old decimal 6
+            $order->get('cost'),
             $order->get('id'),
         ];
 
         if ($this->config['receipt']) {
-            $receipt = $this->modx->toJSON($this->getReceipt($order));
+            $receipt = $this->getReceipt($order);
+            $receipt = $this->receiptEncode($receipt);
             $data[] = $receipt;
         }
 
         $data[] = $this->config['pass1'];
 
-        $data[] = 'Shp_label=' . "modx_official";
+        $data[] = 'Shp_label=' . $this->config['shp_label'];
 
         return $data;
     }
@@ -196,50 +213,89 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         if (!$products) {
             return $out;
         }
-//КАЗАХСТАН
-        if ($this->config['country'] == 'RUS') {
-            foreach ($products as $product) {
-                $out['items'][] = [
-                    'name' => $product->get('name'),
-                    'quantity' => $product->get('count'),
-                    'sum' => $product->get('cost'),
-                    'payment_method' => $this->config['payment_method'],
-                    'payment_object' => $this->config['payment_object'],
-                    'tax' => $this->config['tax']
-                ];
-            }
-
-            if ($order->delivery_cost) {
-                $out['items'][] = [
-                    'name' => 'Доставка',
-                    'quantity' => 1,
-                    'sum' => $order->delivery_cost,
-                    'payment_method' => $this->config['payment_method'],
-                    'payment_object' => 'service',
-                    'tax' => $this->config['tax']
-                ];
-            }
-        } else {
-            foreach ($products as $product) {
-                $out['items'][] = [
-                    'name' => $product->get('name'),
-                    'quantity' => $product->get('count'),
-                    'sum' => $product->get('cost'),
-                    'tax' => $this->config['tax']
-                ];
-            }
-
-            if ($order->delivery_cost) {
-                $out['items'][] = [
-                    'name' => 'Доставка',
-                    'quantity' => 1,
-                    'sum' => $order->delivery_cost,
-                    'tax' => $this->config['tax']
-                ];
-            }
+        switch ($this->config['country']) {
+            case 'RUS':
+                $out['items'] = $this->getItemsRus($order, $products);
+                break;
+            case 'KAZ':
+                $out['items'] = $this->getItemsKaz($order, $products);
+                break;
         }
 
         return $out;
+    }
+
+    private function receiptEncode($receipt)
+    {
+        return urlencode(urlencode(json_encode($receipt)));
+    }
+
+    private function getItemsRus($order, $products)
+    {
+        $out = [];
+        foreach ($products as $product) {
+            $out[] = [
+                'name' => $product->get('name'),
+                'quantity' => $product->get('count'),
+                'sum' => $product->get('cost'),
+                'payment_method' => $this->config['payment_method'],
+                'payment_object' => $this->config['payment_object'],
+                'tax' => $this->config['tax']
+            ];
+        }
+
+        if ($order->get('delivery_cost') > 0) {
+            $out[] = [
+                'name' => 'Доставка',
+                'quantity' => 1,
+                'sum' => $order->get('delivery_cost'),
+                'payment_method' => $this->config['payment_method'],
+                'payment_object' => 'service',
+                'tax' => $this->config['tax']
+            ];
+        }
+
+        return $out;
+    }
+
+    private function getItemsKaz($order, $products)
+    {
+        $out = [];
+        foreach ($products as $product) {
+            $out[] = [
+                'name' => $product->get('name'),
+                'quantity' => $product->get('count'),
+                'sum' => $product->get('cost'),
+                'tax' => $this->config['tax']
+            ];
+        }
+
+        if ($order->get('delivery_cost') > 0) {
+            $out[] = [
+                'name' => 'Доставка',
+                'quantity' => 1,
+                'sum' => $order->get('delivery_cost'),
+                'tax' => $this->config['tax']
+            ];
+        }
+
+        return $out;
+    }
+
+    protected function gateway($data)
+    {
+        $curl = curl_init();
+        curl_setopt_array($curl, array(
+            CURLOPT_URL => $this->config['postUrl'],
+            CURLOPT_RETURNTRANSFER => true,
+            CURLOPT_POST => true,
+            CURLOPT_POSTFIELDS => http_build_query($data),
+            CURLOPT_SSLVERSION => 6
+        ));
+        $response = curl_exec($curl);
+        $response = json_decode($response, true);
+        curl_close($curl);
+        return $response;
     }
 
     private function log($text, $data)

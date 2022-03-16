@@ -69,7 +69,7 @@ $tmp = [
 
 foreach ($tmp as $k => $v) {
     /* @var modSystemSetting $setting */
-    $setting = $modx->newObject('modSystemSetting');
+    $setting = $modx->newObject(modSystemSetting::class);
     $setting->fromArray(array_merge(
         [
             'key' => 'ms2_payment_rbks_' . $k,
