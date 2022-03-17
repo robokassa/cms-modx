@@ -1,4 +1,5 @@
 <?php
+
 /**
  * Loads system settings into build
  * @var modX $modx
@@ -68,13 +69,14 @@ $tmp = [
 
 foreach ($tmp as $k => $v) {
     /* @var modSystemSetting $setting */
-    $setting = $modx->newObject('modSystemSetting');
+    $setting = $modx->newObject(modSystemSetting::class);
     $setting->fromArray(array_merge(
         [
             'key' => 'ms2_payment_rbks_' . $k,
             'namespace' => 'minishop2',
             'area' => 'ms2_payment',
-        ], $v
+        ],
+        $v
     ), '', true, true);
 
     $settings[] = $setting;
