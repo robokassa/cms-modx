@@ -1,11 +1,11 @@
 <?php
 
 /* define package */
-const PKG_NAME = 'mspRobokassa';
+const PKG_NAME = 'mspRobokassaOfficial';
 define('PKG_NAME_LOWER', strtolower(PKG_NAME));
 
 const PKG_VERSION = '2.0.0';
-const PKG_RELEASE = 'pl1';
+const PKG_RELEASE = 'pl';
 const PKG_AUTO_INSTALL = true;
 
 /* define paths */
