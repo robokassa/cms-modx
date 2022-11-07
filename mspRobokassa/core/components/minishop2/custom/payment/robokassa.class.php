@@ -11,7 +11,6 @@ if (!class_exists('msPaymentInterface')) {
     }
 }
 
-
 class Robokassa extends msPaymentHandler implements msPaymentInterface
 {
     public $config;
@@ -34,8 +33,20 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         );
         $paymentUrl = $siteUrl . substr($assetsUrl, 1) . 'payment/robokassa.php';
 
-        $checkoutUrl = 'https://auth.robokassa.ru/Merchant/Index/';
-        $postUrl = 'https://auth.robokassa.ru/Merchant/Indexjson.aspx';
+        $country = strtoupper($this->modx->getOption('ms2_payment_rbks_country'));
+        switch ($country) {
+            case 'KAZ':
+            case 'KZ':
+                $checkoutUrl = 'https://auth.robokassa.kz/Merchant/Index/';
+                $postUrl = 'https://auth.robokassa.kz/Merchant/Indexjson.aspx';
+                break;
+            case 'RUS':
+            case 'RU':
+            default:
+                $checkoutUrl = 'https://auth.robokassa.ru/Merchant/Index/';
+                $postUrl = 'https://auth.robokassa.ru/Merchant/Indexjson.aspx';
+                break;
+        }
 
         $this->config = array_merge([
             'paymentUrl' => $paymentUrl,
@@ -44,7 +55,7 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'login' => $this->modx->getOption('ms2_payment_rbks_login'),
             'pass1' => $this->modx->getOption('ms2_payment_rbks_pass1'),
             'pass2' => $this->modx->getOption('ms2_payment_rbks_pass2'),
-            'country' => $this->modx->getOption('ms2_payment_rbks_country'),
+            'country' => $country,
             'currency' => $this->modx->getOption('ms2_payment_rbks_currency', null, 'rub'),
             'culture' => $this->modx->getOption('ms2_payment_rbks_culture', null, 'ru'),
             'receipt' => $this->modx->getOption('ms2_payment_rbks_receipt', null, false),
@@ -56,7 +67,6 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'shp_label' => 'modx_official'
         ], $config);
     }
-
 
     /* @inheritdoc} */
     public function send(msOrder $order)
@@ -88,9 +98,15 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'Desc' => 'Payment #' . $id,
             'SignatureValue' => $this->getHash($hashData),
             'Shp_label' => $this->config['shp_label'],
-            'IncCurrLabel' => $this->config['currency'],
             'Culture' => $this->config['culture'],
         ];
+
+        switch ($this->config['country']) {
+            case 'RUS':
+            case 'RU':
+                $request['OutSumCurrency'] = $this->config['currency'];
+                break;
+        }
 
         if ($this->config['receipt']) {
             $receipt = $this->getReceipt($order);
@@ -101,7 +117,6 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         if ($this->config['test_mode']) {
             $request['isTest'] = 1;
         }
-
         $response = $this->gateway($request);
 
         if (isset($response['error']) && count($response['error']) > 0) {
@@ -111,7 +126,6 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
 
         return $this->config['checkoutUrl'] . $response['invoiceID'];
     }
-
 
     /* @inheritdoc} */
     public function receive(msOrder $order)
@@ -126,13 +140,13 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         ]);
 
         if ($crc === $crc1) {
-            $this->ms2->changeOrderStatus($id, 2);
+            $status_paid = $this->modx->getOption('ms2_status_paid', null, 2);
+            $this->ms2->changeOrderStatus($id, $status_paid);
             exit('OK');
         } else {
             $this->paymentError('Wrong signature.', $_POST);
         }
     }
-
 
     /**
      * @param $text
@@ -215,9 +229,11 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         }
         switch ($this->config['country']) {
             case 'RUS':
+            case 'RU':
                 $out['items'] = $this->getItemsRus($order, $products);
                 break;
             case 'KAZ':
+            case 'KZ':
                 $out['items'] = $this->getItemsKaz($order, $products);
                 break;
         }
@@ -301,13 +317,13 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
     protected function gateway($data)
     {
         $curl = curl_init();
-        curl_setopt_array($curl, array(
+        curl_setopt_array($curl, [
             CURLOPT_URL => $this->config['postUrl'],
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
             CURLOPT_POSTFIELDS => http_build_query($data),
             CURLOPT_SSLVERSION => 6
-        ));
+        ]);
         $response = curl_exec($curl);
         $response = json_decode($response, true);
         curl_close($curl);
