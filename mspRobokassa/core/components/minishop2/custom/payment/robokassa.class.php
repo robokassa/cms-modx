@@ -248,16 +248,32 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
 
     private function getItemsRus($order, $products)
     {
+        $paymentPrice = $order->getOne('Payment')->get('price');
         $out = [];
         foreach ($products as $product) {
-            $out[] = [
+            $tmp = [
                 'name' => $product->get('name'),
                 'quantity' => $product->get('count'),
-                'sum' => $product->get('cost'),
                 'payment_method' => $this->config['payment_method'],
                 'payment_object' => $this->config['payment_object'],
                 'tax' => $this->config['tax']
             ];
+
+            $productsCost = 0;
+            if ((float)$paymentPrice < 0 && preg_match('/%$/', $paymentPrice)) {
+                $productsCost += ($product->get('cost') - ($product->get('cost') / 100 * abs((float)$paymentPrice)));
+            }
+            if ((float)$paymentPrice > 0 && preg_match('/%$/', $paymentPrice)) {
+                $productsCost += ($product->get('cost') + ($product->get('cost') / 100 * abs((float)$paymentPrice)));
+            }
+
+            if ((float)$paymentPrice === 0.0) {
+                $productsCost += $product->get('cost');
+            }
+
+            $tmp['sum'] = $productsCost;
+
+            $out[] = $tmp;
         }
 
         if ($order->get('delivery_cost') > 0) {
@@ -312,13 +328,5 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         $response = json_decode($response, true);
         curl_close($curl);
         return $response;
-    }
-
-    private function log($text, $data)
-    {
-        $this->modx->log(
-            modX::LOG_LEVEL_ERROR,
-            self::LOG_NAME . ' ' . $text . print_r($data, true)
-        );
     }
 }
