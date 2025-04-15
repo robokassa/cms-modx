@@ -56,7 +56,6 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'pass1' => $this->modx->getOption('ms2_payment_rbks_pass1'),
             'pass2' => $this->modx->getOption('ms2_payment_rbks_pass2'),
             'country' => $country,
-            'currency' => $this->modx->getOption('ms2_payment_rbks_currency', null, 'rub'),
             'culture' => $this->modx->getOption('ms2_payment_rbks_culture', null, 'ru'),
             'receipt' => $this->modx->getOption('ms2_payment_rbks_receipt', null, false),
             'debug' => $this->modx->getOption('ms2_payment_rbks_debug', null, false),
@@ -100,13 +99,6 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'Shp_label' => $this->config['shp_label'],
             'Culture' => $this->config['culture'],
         ];
-
-        switch ($this->config['country']) {
-            case 'RUS':
-            case 'RU':
-                $request['OutSumCurrency'] = $this->config['currency'];
-                break;
-        }
 
         if ($this->config['receipt']) {
             $receipt = $this->getReceipt($order);

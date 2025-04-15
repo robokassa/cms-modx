@@ -12,9 +12,6 @@ $_lang['setting_ms2_payment_rbks_pass2_desc'] = 'Используется инт
 $_lang['setting_ms2_payment_rbks_country'] = 'Страна магазина';
 $_lang['setting_ms2_payment_rbks_country_desc'] = 'Выберите страну магазина. (RUS или KZ)';
 
-$_lang['setting_ms2_payment_rbks_currency'] = 'Предлагаемая валюта платежа';
-$_lang['setting_ms2_payment_rbks_currency_desc'] = 'Пользователь может изменить ее в процессе оплаты. ';
-
 $_lang['setting_ms2_payment_rbks_culture'] = 'Язык Robokassa';
 $_lang['setting_ms2_payment_rbks_culture_desc'] = 'Укажите код языка, на котором показывать сайт Robokassa при оплате.';
 

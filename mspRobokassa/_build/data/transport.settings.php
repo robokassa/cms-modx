@@ -25,10 +25,6 @@ $tmp = [
         'xtype' => 'textfield',
         'value' => 'RUS',
     ],
-    'currency' => [
-        'xtype' => 'textfield',
-        'value' => '',
-    ],
     'culture' => [
         'xtype' => 'textfield',
         'value' => 'ru',
