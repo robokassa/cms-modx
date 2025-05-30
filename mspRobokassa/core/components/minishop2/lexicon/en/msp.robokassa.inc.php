@@ -12,9 +12,6 @@ $_lang['setting_ms2_payment_rbks_pass2_desc'] = 'Used for the interface of the p
 $_lang['setting_ms2_payment_rbks_country'] = 'Shop country';
 $_lang['setting_ms2_payment_rbks_country_desc'] = 'Select store country. (RUS or KZ)';
 
-$_lang['setting_ms2_payment_rbks_currency'] = 'The proposed payment currency';
-$_lang['setting_ms2_payment_rbks_currency_desc'] = 'The customer can change it in the payment process. ';
-
 $_lang['setting_ms2_payment_rbks_culture'] = 'Language of Robokassa';
 $_lang['setting_ms2_payment_rbks_culture_desc'] = 'Specify the language code Robokassa site.';
 
