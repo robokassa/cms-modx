@@ -134,7 +134,7 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         if ($crc === $crc1) {
             $status_paid = $this->modx->getOption('ms2_status_paid', null, 2);
             $this->ms2->changeOrderStatus($id, $status_paid);
-            exit('OK');
+            exit('OK'. $id);
         } else {
             $this->paymentError('Wrong signature.', $_POST);
         }
