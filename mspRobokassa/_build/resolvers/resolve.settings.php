@@ -43,7 +43,7 @@ if ($object->xpdo) {
             if ($payment) {
                 $payment->remove();
             }
-            $modx->removeCollection(modSystemSetting::class, array('key:LIKE' => 'ms2\_payment\_rb\_%'));
+            $modx->removeCollection(modSystemSetting::class, array('key:LIKE' => 'ms2\_payment\_rbks\_%'));
             break;
     }
 }
