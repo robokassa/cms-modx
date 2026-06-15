@@ -38,7 +38,7 @@ MiniShop2 v.2.4.12 и выше;
 3. В личном кабинете Robokassa ("мои магазины" - "настройки" - "технические настройки") указать:
 
    * Result Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php (метод POST)
-   * Success Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=success (метод POST)
+   * Success Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=success (метод POST/GET)
    * Fail Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=failure (метод POST)
 
 ### Уведомления об оплате

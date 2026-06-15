@@ -16,14 +16,29 @@ if (!class_exists('Robokassa')) {
     exit('Error: could not load payment class "Robokassa".');
 }
 
+/* @var msPaymentInterface|Robokassa $handler */
+$handler = new Robokassa($modx->newObject(msPayment::class));
+
 if (!empty($_GET['action'])) {
+    $action = (string)$_GET['action'];
+    $request = !empty($_POST['SignatureValue']) ? $_POST : $_GET;
+
+    if (!in_array($action, ['success', 'failure'], true)) {
+        $handler->paymentError('Unknown redirect action.', $request);
+    }
+
+    if (!$handler->validateRedirectSignature($request)) {
+        $handler->paymentError('Wrong redirect signature.', $request);
+    }
+
     $context = 'web';
     $params = array();
+    $invId = isset($request['InvId']) ? (int)$request['InvId'] : 0;
 
-    if (!empty((int)$_POST['InvId'])) {
-        $params['msorder'] = (int)$_POST['InvId'];
+    if ($invId) {
+        $params['msorder'] = $invId;
 
-        if ($order = $modx->getObject(msOrder::class, array('id' => (int)$_POST['InvId']))) {
+        if ($order = $modx->getObject(msOrder::class, array('id' => $invId))) {
             $context = $order->get('context');
         }
     }
@@ -36,14 +51,10 @@ if (!empty($_GET['action'])) {
         $failure = $modx->makeUrl($id, $context, $params, 'full');
     }
 
-    $redirect = $_GET['action'] === 'success' ? $success : $failure;
+    $redirect = $action === 'success' ? $success : $failure;
     $modx->sendRedirect($redirect);
     die();
 }
-
-
-/* @var msPaymentInterface|Robokassa $handler */
-$handler = new Robokassa($modx->newObject(msPayment::class));
 
 if (!empty($_POST['SignatureValue']) && !empty($_POST['InvId'])) {
     /** @var msOrder $order */

@@ -100,6 +100,11 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             'Culture' => $this->config['culture'],
         ];
 
+        $email = $this->getOrderEmail($order);
+        if (!empty($email)) {
+            $request['Email'] = $email;
+        }
+
         if ($this->config['receipt']) {
             $receipt = $this->getReceipt($order);
             $receipt = $this->receiptEncode($receipt);
@@ -117,6 +122,62 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         }
 
         return $this->config['checkoutUrl'] . $response['invoiceID'];
+    }
+
+    public function validateRedirectSignature(array $request)
+    {
+        foreach (['OutSum', 'InvId', 'SignatureValue'] as $key) {
+            if (!isset($request[$key]) || !is_scalar($request[$key])) {
+                return false;
+            }
+        }
+
+        $hashData = [
+            (string)$request['OutSum'],
+            (string)$request['InvId'],
+            $this->config['pass1'],
+        ];
+        $userParams = [];
+
+        foreach ($request as $key => $value) {
+            if (strpos($key, 'Shp_') === 0 && is_scalar($value)) {
+                $userParams[$key] = (string)$value;
+            }
+        }
+
+        ksort($userParams, SORT_STRING);
+        foreach ($userParams as $key => $value) {
+            $hashData[] = $key . '=' . $value;
+        }
+
+        $expected = $this->getHash($hashData);
+        $received = strtoupper((string)$request['SignatureValue']);
+
+        return hash_equals($expected, $received);
+    }
+
+    private function getOrderEmail(msOrder $order)
+    {
+        $email = trim((string)$order->get('email'));
+
+        if (empty($email)) {
+            $address = $order->getOne('Address');
+            if ($address) {
+                $email = trim((string)$address->get('email'));
+            }
+        }
+
+        if (empty($email)) {
+            $user = $order->getOne('User');
+            if ($user) {
+                $profile = $user->getOne('Profile');
+                if ($profile) {
+                    $email = trim((string)$profile->get('email'));
+                }
+            }
+        }
+
+        return $email;
     }
 
     /* @inheritdoc} */
