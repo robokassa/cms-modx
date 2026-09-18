@@ -3,7 +3,7 @@
 $newBasePaymentHandler = dirname(__FILE__, 3) . '/handlers/mspaymenthandler.class.php';
 $oldBasePaymentHandler = dirname(__FILE__, 3) . '/model/minishop2/mspaymenthandler.class.php';
 
-if (!class_exists('msPaymentInterface')) {
+if (!interface_exists('msPaymentInterface')) {
     if (file_exists($newBasePaymentHandler)) {
         require_once $newBasePaymentHandler;
     } else {
@@ -44,7 +44,7 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             case 'RU':
             default:
                 $checkoutUrl = 'https://auth.robokassa.ru/Merchant/Index/';
-                $postUrl = 'https://auth.robokassa.ru/Merchant/Indexjson.aspx';
+                $postUrl = 'https://services.robokassa.ru/InvoiceServiceWebApi/api/CreateInvoice';
                 break;
         }
 
@@ -86,6 +86,80 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
      */
     public function getPaymentLink(msOrder $order)
     {
+        if ($this->isKazakhstan()) {
+            return $this->getLegacyPaymentLink($order);
+        }
+
+        $storedUrl = $this->getStoredInvoiceUrl($order);
+        if ($storedUrl !== false) {
+            return $storedUrl;
+        }
+
+        $request = [
+            'MerchantLogin' => (string)$this->config['login'],
+            'InvId' => (int)$order->get('id'),
+            'InvoiceType' => 'OneTime',
+            'Culture' => (string)$this->config['culture'],
+            'OutSum' => (float)$this->formatSum($order->get('cost')),
+            'Description' => 'Payment #' . $order->get('id'),
+            'UserFields' => [
+                'Shp_label' => (string)$this->config['shp_label'],
+            ],
+        ];
+
+        $additionalParameters = [];
+        $email = $this->getOrderEmail($order);
+        if ($email !== '') {
+            $additionalParameters['Email'] = $email;
+        }
+        if ($this->config['test_mode']) {
+            $additionalParameters['IsTest'] = '1';
+        }
+        if ($additionalParameters) {
+            $request['AdditionalParameters'] = $additionalParameters;
+        }
+
+        if ($this->config['receipt']) {
+            $items = $this->getInvoiceItems($order);
+            if ($items === false) {
+                return false;
+            }
+            if ($items) {
+                $request['InvoiceItems'] = $items;
+            }
+        }
+
+        $response = $this->gateway($request);
+        if ($response === false) {
+            return false;
+        }
+        if (!isset($response['isSuccess']) || $response['isSuccess'] !== true) {
+            $message = 'Invoice API rejected CreateInvoice.';
+            if (isset($response['message']) && is_scalar($response['message'])) {
+                $apiMessage = trim(preg_replace('/\s+/', ' ', (string)$response['message']));
+                if ($apiMessage !== '') {
+                    $message .= ' Robokassa: ' . substr($apiMessage, 0, 500);
+                }
+            }
+            return $this->paymentLinkError($message);
+        }
+
+        if (!$this->isRussianPaymentUrl(isset($response['url']) ? $response['url'] : null)) {
+            return $this->paymentLinkError('Invoice API returned an invalid payment URL.');
+        }
+
+        $this->storeInvoice($order, $response);
+
+        return $response['url'];
+    }
+
+    private function isKazakhstan()
+    {
+        return in_array($this->config['country'], ['KAZ', 'KZ'], true);
+    }
+
+    private function getLegacyPaymentLink(msOrder $order)
+    {
         $id = $order->get('id');
         $sum = $order->get('cost');
         $hashData = $this->getRequestHashData($order);
@@ -116,9 +190,11 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         }
         $response = $this->gateway($request);
 
-        if (isset($response['error']) && count($response['error']) > 0) {
-            $this->modx->log(1, 'Ошибка получения ссылки на оплату');
-            return false;
+        if ($response === false || !is_array($response)
+            || !empty($response['error']) || empty($response['invoiceID'])
+            || !is_scalar($response['invoiceID'])
+        ) {
+            return $this->paymentLinkError('Could not obtain a Kazakhstan payment link.');
         }
 
         return $this->config['checkoutUrl'] . $response['invoiceID'];
@@ -299,6 +375,96 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         return urlencode(urlencode(json_encode($receipt)));
     }
 
+    private function getInvoiceItems(msOrder $order)
+    {
+        $receipt = $this->getReceipt($order);
+        if (empty($receipt['items'])) {
+            return [];
+        }
+
+        $items = [];
+        foreach ($receipt['items'] as $item) {
+            $quantity = (float)$item['quantity'];
+            $lineTotal = (float)$item['sum'];
+            if ($quantity <= 0 || $lineTotal < 0) {
+                return $this->paymentLinkError('Invoice item quantity and cost must be valid.');
+            }
+
+            $items[] = [
+                'Name' => (string)$item['name'],
+                'Quantity' => $quantity,
+                // The legacy receipt contains a line total, while Invoice API expects a unit price.
+                'Cost' => $lineTotal / $quantity,
+                'Tax' => (string)$item['tax'],
+                'PaymentMethod' => (string)$item['payment_method'],
+                'PaymentObject' => (string)$item['payment_object'],
+            ];
+        }
+
+        return $items;
+    }
+
+    private function getStoredInvoiceUrl(msOrder $order)
+    {
+        $properties = $this->getOrderProperties($order);
+        if (empty($properties['robokassa_invoice']) || !is_array($properties['robokassa_invoice'])) {
+            return false;
+        }
+
+        $invoice = $properties['robokassa_invoice'];
+        if (!isset($invoice['inv_id'], $invoice['out_sum'], $invoice['test_mode'], $invoice['url'])
+            || (int)$invoice['inv_id'] !== (int)$order->get('id')
+            || (string)$invoice['out_sum'] !== $this->formatSum($order->get('cost'))
+            || (int)$invoice['test_mode'] !== (int)(bool)$this->config['test_mode']
+            || !$this->isRussianPaymentUrl($invoice['url'])
+        ) {
+            return false;
+        }
+
+        return $invoice['url'];
+    }
+
+    private function storeInvoice(msOrder $order, array $response)
+    {
+        $properties = $this->getOrderProperties($order);
+        $properties['robokassa_invoice'] = [
+            'id' => isset($response['id']) && is_scalar($response['id']) ? (string)$response['id'] : '',
+            'inv_id' => (int)$order->get('id'),
+            'out_sum' => $this->formatSum($order->get('cost')),
+            'test_mode' => (int)(bool)$this->config['test_mode'],
+            'url' => (string)$response['url'],
+        ];
+
+        $order->set('properties', $properties);
+        if (!$order->save()) {
+            $this->modx->log(
+                modX::LOG_LEVEL_ERROR,
+                self::LOG_NAME . ' Could not save the Invoice API payment URL for order ' . (int)$order->get('id') . '.'
+            );
+        }
+    }
+
+    private function getOrderProperties(msOrder $order)
+    {
+        $properties = $order->get('properties');
+        if (is_string($properties) && $properties !== '') {
+            $decoded = json_decode($properties, true);
+            $properties = is_array($decoded) ? $decoded : [];
+        }
+
+        return is_array($properties) ? $properties : [];
+    }
+
+    private function isRussianPaymentUrl($url)
+    {
+        if (!is_string($url) || !filter_var($url, FILTER_VALIDATE_URL)) {
+            return false;
+        }
+
+        return strtolower((string)parse_url($url, PHP_URL_SCHEME)) === 'https'
+            && strtolower((string)parse_url($url, PHP_URL_HOST)) === 'auth.robokassa.ru';
+    }
+
     private function getItemsRus($order, $products)
     {
         $paymentPrice = $order->getOne('Payment')->get('price');
@@ -369,17 +535,90 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
 
     protected function gateway($data)
     {
+        return $this->invoiceApiRequest($this->config['postUrl'], $data);
+    }
+
+    private function invoiceApiRequest($url, array $data)
+    {
+        if ($this->isKazakhstan()) {
+            $body = http_build_query($data);
+            $headers = ['Content-Type: application/x-www-form-urlencoded'];
+        } else {
+            $jwt = $this->createInvoiceToken($data);
+            if ($jwt === false) {
+                return false;
+            }
+            // Invoice API accepts the JWT itself as a JSON string, not the payload object.
+            $body = json_encode($jwt);
+            if ($body === false) {
+                return $this->paymentLinkError('Could not encode the Invoice API request.');
+            }
+            $headers = ['Content-Type: application/json', 'Accept: application/json'];
+        }
+
         $curl = curl_init();
+        if ($curl === false) {
+            return $this->paymentLinkError('Could not initialize the payment request.');
+        }
+
         curl_setopt_array($curl, [
-            CURLOPT_URL => $this->config['postUrl'],
+            CURLOPT_URL => $url,
             CURLOPT_RETURNTRANSFER => true,
             CURLOPT_POST => true,
-            CURLOPT_POSTFIELDS => http_build_query($data),
-            CURLOPT_SSLVERSION => 6
+            CURLOPT_POSTFIELDS => $body,
+            CURLOPT_HTTPHEADER => $headers,
+            CURLOPT_CONNECTTIMEOUT => 10,
+            CURLOPT_TIMEOUT => 30,
+            CURLOPT_SSLVERSION => CURL_SSLVERSION_TLSv1_2,
         ]);
         $response = curl_exec($curl);
-        $response = json_decode($response, true);
+        $errorNumber = curl_errno($curl);
+        $errorText = curl_error($curl);
+        $status = (int)curl_getinfo($curl, CURLINFO_HTTP_CODE);
         curl_close($curl);
-        return $response;
+
+        if ($response === false || $errorNumber !== 0) {
+            $message = 'Payment request failed (cURL error ' . $errorNumber . ').';
+            if ($this->config['debug'] && $errorText !== '') {
+                $message .= ' ' . substr(preg_replace('/\s+/', ' ', $errorText), 0, 500);
+            }
+            return $this->paymentLinkError($message);
+        }
+        if ($status < 200 || $status >= 300) {
+            return $this->paymentLinkError('Payment API returned HTTP ' . $status . '.');
+        }
+
+        $decoded = json_decode($response, true);
+        if (json_last_error() !== JSON_ERROR_NONE || !is_array($decoded)) {
+            return $this->paymentLinkError('Payment API returned invalid JSON.');
+        }
+
+        return $decoded;
+    }
+
+    private function createInvoiceToken(array $payload)
+    {
+        $headerJson = json_encode(['typ' => 'JWT', 'alg' => 'MD5']);
+        $payloadJson = json_encode($payload, JSON_UNESCAPED_UNICODE | JSON_UNESCAPED_SLASHES);
+        if ($headerJson === false || $payloadJson === false) {
+            return $this->paymentLinkError('Could not encode the invoice as JSON.');
+        }
+
+        $signingInput = $this->base64UrlEncode($headerJson) . '.' . $this->base64UrlEncode($payloadJson);
+        $secret = (string)$this->config['login'] . ':' . (string)$this->config['pass1'];
+        $signature = hash_hmac('md5', $signingInput, $secret, true);
+
+        return $signingInput . '.' . $this->base64UrlEncode($signature);
+    }
+
+    private function base64UrlEncode($value)
+    {
+        return rtrim(strtr(base64_encode($value), '+/', '-_'), '=');
+    }
+
+    private function paymentLinkError($message)
+    {
+        $this->modx->log(modX::LOG_LEVEL_ERROR, self::LOG_NAME . ' ' . $message);
+        return false;
     }
 }
