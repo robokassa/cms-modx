@@ -1,12 +1,16 @@
 <?php
 
+if (!defined('MSP_ROBOKASSA_BUILD_CONTEXT') && !defined('MSP_ROBOKASSA_INSTALL_BOOTSTRAP')) {
+    header('HTTP/1.1 403 Forbidden');
+    exit('Forbidden');
+}
+
 /* define package */
 const PKG_NAME = 'mspRobokassaOfficial';
 define('PKG_NAME_LOWER', strtolower(PKG_NAME));
 
-const PKG_VERSION = '2.2.0';
+const PKG_VERSION = '2.2.1';
 const PKG_RELEASE = 'pl';
-const PKG_AUTO_INSTALL = true;
 
 /* define paths */
 /* define paths */

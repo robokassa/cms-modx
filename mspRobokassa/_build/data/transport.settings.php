@@ -1,5 +1,10 @@
 <?php
 
+if (!defined('MSP_ROBOKASSA_BUILD_CONTEXT')) {
+    header('HTTP/1.1 403 Forbidden');
+    exit('Forbidden');
+}
+
 /**
  * Loads system settings into build
  * @var modX $modx
