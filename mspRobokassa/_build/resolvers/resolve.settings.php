@@ -1,5 +1,10 @@
 <?php
 
+if (!isset($object)) {
+    header('HTTP/1.1 403 Forbidden');
+    exit('Forbidden');
+}
+
 /** @var xPDOSimpleObject $object */
 if ($object->xpdo) {
     /* @var modX $modx */
