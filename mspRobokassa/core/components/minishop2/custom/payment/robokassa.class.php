@@ -86,6 +86,11 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
      */
     public function getPaymentLink(msOrder $order)
     {
+        $configurationError = $this->getConfigurationError();
+        if ($configurationError !== '') {
+            return $this->paymentLinkError($configurationError);
+        }
+
         if ($this->isKazakhstan()) {
             return $this->getLegacyPaymentLink($order);
         }
@@ -259,16 +264,24 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
     /* @inheritdoc} */
     public function receive(msOrder $order)
     {
+        $this->validateResultConfiguration($_POST);
+
+        foreach (['SignatureValue', 'OutSum', 'InvId'] as $key) {
+            if (!isset($_POST[$key]) || !is_scalar($_POST[$key])) {
+                $this->paymentError('Invalid ResultURL request.', $_POST);
+            }
+        }
+
         $id = $order->get('id');
-        $crc = $_POST['SignatureValue'];
+        $crc = strtoupper((string)$_POST['SignatureValue']);
         $crc1 = $this->getHash([
-            $_POST['OutSum'],
+            (string)$_POST['OutSum'],
             $id,
             $this->config['pass2'],
             'Shp_label=modx_official'
         ]);
 
-        if ($crc === $crc1) {
+        if (hash_equals($crc1, $crc)) {
             $status_paid = $this->modx->getOption('ms2_status_paid', null, 2);
             $this->ms2->changeOrderStatus($id, $status_paid);
             exit('OK'. $id);
@@ -277,19 +290,96 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         }
     }
 
+    public function validateResultConfiguration(array $request)
+    {
+        $configurationError = $this->getConfigurationError();
+        if ($configurationError !== '') {
+            $this->paymentError($configurationError, $request);
+        }
+    }
+
     /**
-     * @param $text
+     * @param string $text
      * @param array $request
      */
     public function paymentError($text, $request = [])
     {
         $this->modx->log(
             modX::LOG_LEVEL_ERROR,
-            self::LOG_NAME . ' ' . $text . ', request: ' . print_r($request, true)
+            self::LOG_NAME . ' ' . $this->getSafeRequestErrorLog($text, $request)
         );
         header("HTTP/1.0 400 Bad Request");
 
         die('ERR: ' . $text);
+    }
+
+    private function getConfigurationError()
+    {
+        $credentials = [
+            'Merchant Login' => $this->config['login'],
+            'Password #1' => $this->config['pass1'],
+            'Password #2' => $this->config['pass2'],
+        ];
+        $missing = [];
+        $placeholders = [];
+
+        foreach ($credentials as $name => $value) {
+            if (!is_scalar($value) || trim((string)$value) === '') {
+                $missing[] = $name;
+            } elseif (in_array(strtolower(trim((string)$value)), [
+                'your robokassa login',
+                'password1',
+                'password2',
+            ], true)) {
+                $placeholders[] = $name;
+            }
+        }
+
+        $errors = [];
+        if ($missing) {
+            $errors[] = 'missing: ' . implode(', ', $missing);
+        }
+        if ($placeholders) {
+            $errors[] = 'legacy placeholder: ' . implode(', ', $placeholders);
+        }
+
+        if (!$errors) {
+            return '';
+        }
+
+        return 'Robokassa configuration is invalid (' . implode('; ', $errors) . ').';
+    }
+
+    private function getSafeRequestErrorLog($text, array $request)
+    {
+        $entry = [
+            'event' => 'request_error',
+            'reason' => $this->limitLogValue($text, 200),
+            'method' => $this->limitLogValue(
+                isset($_SERVER['REQUEST_METHOD']) ? $_SERVER['REQUEST_METHOD'] : 'UNKNOWN',
+                16
+            ),
+        ];
+
+        foreach (['InvId' => 'inv_id', 'OutSum' => 'out_sum'] as $source => $target) {
+            if (isset($request[$source]) && is_scalar($request[$source])) {
+                $entry[$target] = $this->limitLogValue($request[$source], 64);
+            }
+        }
+
+        return json_encode($entry, JSON_UNESCAPED_SLASHES);
+    }
+
+    private function limitLogValue($value, $maxLength)
+    {
+        if (!is_scalar($value)) {
+            return '';
+        }
+
+        $value = trim((string)$value);
+        $value = preg_replace('/[^\x20-\x7E]/', '?', $value);
+
+        return substr($value, 0, $maxLength);
     }
 
     /**

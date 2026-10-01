@@ -16,15 +16,15 @@ $settings = [];
 $tmp = [
     'login' => [
         'xtype' => 'textfield',
-        'value' => 'your robokassa login',
+        'value' => '',
     ],
     'pass1' => [
         'xtype' => 'text-password',
-        'value' => 'password1',
+        'value' => '',
     ],
     'pass2' => [
         'xtype' => 'text-password',
-        'value' => 'password2',
+        'value' => '',
     ],
     'country' => [
         'xtype' => 'textfield',

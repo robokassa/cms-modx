@@ -17,9 +17,9 @@ MiniShop2 v.2.4.12 и выше;
 
 ### Ручная установка
 
-1. Загрузить в любую подпапку modx (например mspRobokassa)
+1. Загрузить папку mspRobokassa в корневой каталог modx
 2. Войти в MODX Manager под пользователем с правом управления пакетами.
-3. Открыть в том же браузере `http://your-domain.ru/mspRobokassa/install.php` и нажать «Установить модуль».
+3. Открыть в том же браузере `https://your-domain.ru/mspRobokassa/install.php` и нажать «Установить модуль».
 4. После установки исходная папка mspRobokassa больше не требуется и при необходимости может быть удалена с сервера.
 
 Прямой запуск `_build/build.transport.php` через браузер запрещён. Этот скрипт предназначен только для сборки transport-пакета разработчиками через PHP CLI.
@@ -40,9 +40,11 @@ MiniShop2 v.2.4.12 и выше;
 
 3. В личном кабинете Robokassa ("мои магазины" - "настройки" - "технические настройки") указать:
 
-   * Result Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php (метод POST)
-   * Success Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=success (метод POST/GET)
-   * Fail Url - http://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=failure (метод POST)
+   * Result Url - https://вашсайт.ru/assets/components/minishop2/payment/robokassa.php (метод POST)
+   * Success Url - https://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=success (метод POST/GET)
+   * Fail Url - https://вашсайт.ru/assets/components/minishop2/payment/robokassa.php?action=failure (метод POST)
+
+ResultURL, SuccessURL и FailURL должны быть доступны только по HTTPS с действительным TLS-сертификатом. Не передавайте параметры платежа по HTTP.
 
 ### Уведомления об оплате
 
