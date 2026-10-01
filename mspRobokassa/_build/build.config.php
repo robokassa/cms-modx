@@ -9,7 +9,7 @@ if (!defined('MSP_ROBOKASSA_BUILD_CONTEXT') && !defined('MSP_ROBOKASSA_INSTALL_B
 const PKG_NAME = 'mspRobokassaOfficial';
 define('PKG_NAME_LOWER', strtolower(PKG_NAME));
 
-const PKG_VERSION = '2.2.1';
+const PKG_VERSION = '2.2.2';
 const PKG_RELEASE = 'pl';
 
 /* define paths */

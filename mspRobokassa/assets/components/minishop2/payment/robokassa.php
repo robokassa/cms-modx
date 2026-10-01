@@ -57,11 +57,19 @@ if (!empty($_GET['action'])) {
 }
 
 if (!empty($_POST['SignatureValue']) && !empty($_POST['InvId'])) {
+    $handler->validateResultConfiguration($_POST);
+
+    foreach (['SignatureValue', 'OutSum', 'InvId'] as $key) {
+        if (!isset($_POST[$key]) || !is_scalar($_POST[$key])) {
+            $handler->paymentError('Invalid ResultURL request.', $_POST);
+        }
+    }
+
     /** @var msOrder $order */
     $order = $modx->getObject(msOrder::class, ['id' => $_POST['InvId']]);
     if ($order) {
         $handler->receive($order);
     } else {
-        $modx->log(modX::LOG_LEVEL_ERROR, '[miniShop2:Robokassa] Could not retrieve order with id ' . $_REQUEST['LMI_PAYMENT_NO']);
+        $handler->paymentError('Could not retrieve order for ResultURL.', $_POST);
     }
 }
