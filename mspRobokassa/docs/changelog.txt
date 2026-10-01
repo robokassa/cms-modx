@@ -1,5 +1,9 @@
 Changelog for Robokassa.
 
+2.2.3
+==============
+- В подпись Result URL для /InvoiceServiceWebApi/api/CreateInvoice добавлен параметр shp_interface=InvoiceService.WebApi
+
 2.2.2
 ==============
 - Убраны публичные значения по умолчанию для учётных данных Robokassa и добавлена проверка конфигурации перед созданием платежа и обработкой ResultURL
@@ -12,7 +16,7 @@ Changelog for Robokassa.
 
 2.2.0
 ==============
-- Для РФ сегмента устаревший cURL-запрос заменён на JWT Invoice API Robokassag
+- Для РФ сегмента устаревший cURL-запрос заменён на JWT Invoice API Robokassa
 - Для Казахстана сохранён прежний cURL-механизм оплаты
 
 2.1.2

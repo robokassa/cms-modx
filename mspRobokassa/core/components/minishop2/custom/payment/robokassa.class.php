@@ -274,12 +274,16 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
 
         $id = $order->get('id');
         $crc = strtoupper((string)$_POST['SignatureValue']);
-        $crc1 = $this->getHash([
+        $hashData = [
             (string)$_POST['OutSum'],
             $id,
             $this->config['pass2'],
             'Shp_label=modx_official'
-        ]);
+        ];
+        if (isset($_POST['shp_interface']) && is_scalar($_POST['shp_interface'])) {
+            $hashData[] = 'shp_interface=' . (string)$_POST['shp_interface'];
+        }
+        $crc1 = $this->getHash($hashData);
 
         if (hash_equals($crc1, $crc)) {
             $status_paid = $this->modx->getOption('ms2_status_paid', null, 2);
