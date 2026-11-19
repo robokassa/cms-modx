@@ -163,6 +163,14 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         return in_array($this->config['country'], ['KAZ', 'KZ'], true);
     }
 
+    private function hasRequiredInterface(array $request)
+    {
+        return $this->isKazakhstan()
+            || (isset($request['shp_interface'])
+                && is_scalar($request['shp_interface'])
+                && trim((string)$request['shp_interface']) !== '');
+    }
+
     private function getLegacyPaymentLink(msOrder $order)
     {
         $id = $order->get('id');
@@ -213,6 +221,10 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             }
         }
 
+        if (!$this->hasRequiredInterface($request)) {
+            return false;
+        }
+
         $hashData = [
             (string)$request['OutSum'],
             (string)$request['InvId'],
@@ -221,12 +233,12 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
         $userParams = [];
 
         foreach ($request as $key => $value) {
-            if (strpos($key, 'Shp_') === 0 && is_scalar($value)) {
+            if (stripos($key, 'Shp_') === 0 && is_scalar($value)) {
                 $userParams[$key] = (string)$value;
             }
         }
 
-        ksort($userParams, SORT_STRING);
+        ksort($userParams, SORT_STRING | SORT_FLAG_CASE);
         foreach ($userParams as $key => $value) {
             $hashData[] = $key . '=' . $value;
         }
@@ -272,17 +284,21 @@ class Robokassa extends msPaymentHandler implements msPaymentInterface
             }
         }
 
+        if (!$this->hasRequiredInterface($_POST)) {
+            $this->paymentError('Missing or invalid shp_interface.', $_POST);
+        }
+
         $id = $order->get('id');
         $crc = strtoupper((string)$_POST['SignatureValue']);
         $hashData = [
             (string)$_POST['OutSum'],
             $id,
             $this->config['pass2'],
-            'Shp_label=modx_official'
         ];
         if (isset($_POST['shp_interface']) && is_scalar($_POST['shp_interface'])) {
             $hashData[] = 'shp_interface=' . (string)$_POST['shp_interface'];
         }
+        $hashData[] = 'Shp_label=modx_official';
         $crc1 = $this->getHash($hashData);
 
         if (hash_equals($crc1, $crc)) {
